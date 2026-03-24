@@ -1,0 +1,212 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg-deep: #0d0a1a;
+  --bg-mid: #150f2a;
+  --gold: #c9a84c;
+  --gold-light: #fbbf24;
+  --purple: #7b3f9e;
+  --purple-light: #a855f7;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  min-height: 100vh;
+  background-color: var(--bg-deep);
+  color: #e5d9f2;
+}
+
+/* Starfield background */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  background-image:
+    radial-gradient(1px 1px at 10% 15%, rgba(255,255,255,0.6) 0%, transparent 100%),
+    radial-gradient(1px 1px at 25% 40%, rgba(255,255,255,0.4) 0%, transparent 100%),
+    radial-gradient(1px 1px at 45% 10%, rgba(255,255,255,0.5) 0%, transparent 100%),
+    radial-gradient(1px 1px at 60% 55%, rgba(255,255,255,0.3) 0%, transparent 100%),
+    radial-gradient(1px 1px at 75% 25%, rgba(255,255,255,0.6) 0%, transparent 100%),
+    radial-gradient(1px 1px at 85% 70%, rgba(255,255,255,0.4) 0%, transparent 100%),
+    radial-gradient(1px 1px at 20% 80%, rgba(255,255,255,0.3) 0%, transparent 100%),
+    radial-gradient(1px 1px at 90% 90%, rgba(255,255,255,0.5) 0%, transparent 100%),
+    radial-gradient(1px 1px at 35% 65%, rgba(255,255,255,0.2) 0%, transparent 100%),
+    radial-gradient(1px 1px at 55% 35%, rgba(255,255,255,0.4) 0%, transparent 100%),
+    radial-gradient(2px 2px at 5% 50%, rgba(201,168,76,0.3) 0%, transparent 100%),
+    radial-gradient(2px 2px at 70% 5%, rgba(201,168,76,0.2) 0%, transparent 100%),
+    radial-gradient(2px 2px at 95% 45%, rgba(168,85,247,0.2) 0%, transparent 100%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Nebula effect */
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 80% 60% at 20% 30%, rgba(91,33,182,0.08) 0%, transparent 70%),
+    radial-gradient(ellipse 60% 80% at 80% 70%, rgba(124,58,237,0.06) 0%, transparent 70%),
+    radial-gradient(ellipse 40% 40% at 50% 50%, rgba(201,168,76,0.03) 0%, transparent 70%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.main-content {
+  position: relative;
+  z-index: 1;
+}
+
+/* Gold gradient text */
+.text-gold-gradient {
+  background: linear-gradient(135deg, #fbbf24, #c9a84c, #fde68a, #c9a84c);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Mystical card */
+.tarot-card {
+  background: linear-gradient(145deg, #1a0d33, #0f0820, #1a0d33);
+  border: 1px solid rgba(201, 168, 76, 0.4);
+  box-shadow:
+    0 0 20px rgba(124, 58, 237, 0.15),
+    inset 0 0 20px rgba(0,0,0,0.5);
+  transition: all 0.3s ease;
+}
+
+.tarot-card:hover {
+  border-color: rgba(201, 168, 76, 0.8);
+  box-shadow:
+    0 0 30px rgba(201, 168, 76, 0.25),
+    0 0 60px rgba(124, 58, 237, 0.2),
+    inset 0 0 20px rgba(0,0,0,0.5);
+  transform: translateY(-4px);
+}
+
+.tarot-card.reversed .card-symbol {
+  transform: rotate(180deg);
+}
+
+/* Gold border button */
+.btn-mystic {
+  background: linear-gradient(135deg, rgba(201,168,76,0.15), rgba(201,168,76,0.05));
+  border: 1px solid rgba(201,168,76,0.5);
+  color: #fbbf24;
+  transition: all 0.3s ease;
+}
+
+.btn-mystic:hover {
+  background: linear-gradient(135deg, rgba(201,168,76,0.25), rgba(201,168,76,0.1));
+  border-color: rgba(201,168,76,0.9);
+  box-shadow: 0 0 20px rgba(201,168,76,0.3);
+}
+
+.btn-mystic:active {
+  transform: scale(0.98);
+}
+
+/* Primary button */
+.btn-primary {
+  background: linear-gradient(135deg, #7b3f9e, #5b21b6);
+  border: 1px solid rgba(168,85,247,0.5);
+  color: white;
+  transition: all 0.3s ease;
+}
+
+.btn-primary:hover {
+  background: linear-gradient(135deg, #8b4fb0, #6d28d9);
+  box-shadow: 0 0 25px rgba(168,85,247,0.4);
+}
+
+/* Glow panel */
+.glow-panel {
+  background: rgba(21, 15, 42, 0.8);
+  border: 1px solid rgba(201, 168, 76, 0.2);
+  backdrop-filter: blur(10px);
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #0d0a1a;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(201,168,76,0.3);
+  border-radius: 3px;
+}
+
+/* Prose styling for interpretation */
+.interpretation-text h2,
+.interpretation-text h3 {
+  color: #fbbf24;
+  margin-top: 1.5rem;
+  margin-bottom: 0.5rem;
+}
+.interpretation-text p {
+  margin-bottom: 1rem;
+  line-height: 1.7;
+  color: #e5d9f2;
+}
+.interpretation-text strong {
+  color: #fde68a;
+}
+.interpretation-text em {
+  color: #c4b5fd;
+}
+.interpretation-text hr {
+  border-color: rgba(201,168,76,0.2);
+  margin: 1.5rem 0;
+}
+
+/* Animation utilities */
+@keyframes shimmer {
+  0% { background-position: -200% center; }
+  100% { background-position: 200% center; }
+}
+
+.shimmer {
+  background: linear-gradient(90deg, transparent, rgba(201,168,76,0.1), transparent);
+  background-size: 200% auto;
+  animation: shimmer 2s linear infinite;
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-8px); }
+}
+
+.float-animation {
+  animation: float 4s ease-in-out infinite;
+}
+
+/* Reversed card indicator */
+.card-reversed-badge {
+  background: rgba(239,68,68,0.15);
+  border: 1px solid rgba(239,68,68,0.3);
+  color: #fca5a5;
+  font-size: 0.65rem;
+  padding: 2px 6px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.card-upright-badge {
+  background: rgba(201,168,76,0.15);
+  border: 1px solid rgba(201,168,76,0.3);
+  color: #fbbf24;
+  font-size: 0.65rem;
+  padding: 2px 6px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
