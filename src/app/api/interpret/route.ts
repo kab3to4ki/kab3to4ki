@@ -1,8 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { type DrawnCard } from "@/lib/tarotCards";
 
-const client = new Anthropic();
-
 const SYSTEM_PROMPT = `You are a wise, compassionate tarot reader with deep knowledge of the cards and their symbolism.
 You provide thoughtful, nuanced readings that are insightful yet grounded.
 
@@ -19,8 +17,11 @@ Guidelines:
 
 Remember: tarot reveals patterns and potentials — the seeker always has free will to shape their path.`;
 
+export const maxDuration = 60;
+
 export async function POST(req: Request) {
   try {
+    const client = new Anthropic();
     const body = await req.json();
     const { question, cards, spreadType, image, imageType } = body as {
       question?: string;
@@ -72,33 +73,20 @@ export async function POST(req: Request) {
       return new Response("Invalid request: provide cards or image", { status: 400 });
     }
 
-    const stream = await client.messages.stream({
+    const message = await client.messages.create({
       model: "claude-opus-4-6",
-      max_tokens: 2048,
+      max_tokens: 1024,
       system: SYSTEM_PROMPT,
       messages: [{ role: "user", content: userContent }],
     });
 
-    const readable = new ReadableStream({
-      async start(controller) {
-        const encoder = new TextEncoder();
-        for await (const event of stream) {
-          if (
-            event.type === "content_block_delta" &&
-            event.delta.type === "text_delta"
-          ) {
-            controller.enqueue(encoder.encode(event.delta.text));
-          }
-        }
-        controller.close();
-      },
-    });
+    const text = message.content
+      .filter((block) => block.type === "text")
+      .map((block) => (block as Anthropic.TextBlock).text)
+      .join("");
 
-    return new Response(readable, {
-      headers: {
-        "Content-Type": "text/plain; charset=utf-8",
-        "Transfer-Encoding": "chunked",
-      },
+    return new Response(text, {
+      headers: { "Content-Type": "text/plain; charset=utf-8" },
     });
   } catch (error) {
     console.error("Interpret error:", error);
