@@ -18,6 +18,34 @@ type Step =
 type Mode = "virtual" | "photo";
 type SpreadKey = keyof typeof SPREAD_TYPES;
 
+async function fetchInterpretation(
+  body: Record<string, unknown>,
+  onChunk: (text: string) => void
+): Promise<void> {
+  const response = await fetch("/api/interpret", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) {
+    let errMsg = `Server error ${response.status}`;
+    try {
+      const json = await response.json();
+      if (json.error) errMsg = json.error;
+    } catch {
+      // ignore
+    }
+    throw new Error(errMsg);
+  }
+  const reader = response.body!.getReader();
+  const decoder = new TextDecoder();
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    onChunk(decoder.decode(value));
+  }
+}
+
 export default function Home() {
   const [step, setStep] = useState<Step>("welcome");
   const [mode, setMode] = useState<Mode>("virtual");
@@ -51,7 +79,6 @@ export default function Home() {
     const cards = drawCards(spread.count, spread.positions);
     setDrawnCards(cards);
     setStep("drawing");
-    // Small delay then show reading step
     await new Promise((r) => setTimeout(r, 1200));
     setStep("reading");
     setInterpretation("");
@@ -61,26 +88,20 @@ export default function Home() {
     setIsLoading(true);
     setInterpretation("");
     try {
-      const response = await fetch("/api/interpret", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+      await fetchInterpretation(
+        {
           question: question || undefined,
           cards: drawnCards,
           spreadType: SPREAD_TYPES[spreadKey].name,
-        }),
-      });
-      if (!response.ok) throw new Error("API error");
-      const reader = response.body!.getReader();
-      const decoder = new TextDecoder();
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        setInterpretation((prev) => prev + decoder.decode(value));
-        interpretRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
-      }
-    } catch {
-      setInterpretation("The cosmic connection was interrupted. Please try again.");
+        },
+        (chunk) => {
+          setInterpretation((prev) => prev + chunk);
+          interpretRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+        }
+      );
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Unknown error";
+      setInterpretation(`Error: ${msg}`);
     } finally {
       setIsLoading(false);
     }
@@ -94,7 +115,6 @@ export default function Home() {
     reader.onload = (ev) => {
       const result = ev.target?.result as string;
       setPhotoPreview(result);
-      // Strip data URL prefix
       setPhotoBase64(result.split(",")[1]);
     };
     reader.readAsDataURL(file);
@@ -106,25 +126,17 @@ export default function Home() {
     setIsLoading(true);
     setInterpretation("");
     try {
-      const response = await fetch("/api/interpret", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+      await fetchInterpretation(
+        {
           question: question || undefined,
           image: photoBase64,
           imageType: photoType,
-        }),
-      });
-      if (!response.ok) throw new Error("API error");
-      const reader = response.body!.getReader();
-      const decoder = new TextDecoder();
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        setInterpretation((prev) => prev + decoder.decode(value));
-      }
-    } catch {
-      setInterpretation("The cosmic connection was interrupted. Please try again.");
+        },
+        (chunk) => setInterpretation((prev) => prev + chunk)
+      );
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Unknown error";
+      setInterpretation(`Error: ${msg}`);
     } finally {
       setIsLoading(false);
     }
@@ -339,7 +351,6 @@ export default function Home() {
       {/* === VIRTUAL READING === */}
       {step === "reading" && (
         <div className="w-full max-w-4xl animate-fade-in">
-          {/* Cards display */}
           <div className="glow-panel rounded-2xl p-6 mb-6">
             <h2 className="text-lg font-serif text-gold-400 text-center mb-1">
               {SPREAD_TYPES[spreadKey].name}
@@ -365,7 +376,6 @@ export default function Home() {
             </div>
           </div>
 
-          {/* Interpretation */}
           {!interpretation && !isLoading && (
             <div className="text-center mb-6">
               <div className="glow-panel rounded-xl p-6 mb-4">
@@ -412,7 +422,6 @@ export default function Home() {
             </div>
           )}
 
-          {/* Actions */}
           {interpretation && !isLoading && (
             <div className="flex gap-3 mt-6 justify-center flex-wrap">
               <button
@@ -445,8 +454,6 @@ export default function Home() {
             <h2 className="text-xl font-serif text-gold-400 mb-2 text-center">
               Upload Your Spread
             </h2>
-
-            {/* Instructions */}
             <div className="bg-purple-900/20 rounded-xl p-4 mb-6 border border-purple-500/20">
               <h3 className="text-purple-300 font-semibold text-sm mb-2">How to prepare:</h3>
               <ol className="text-white/60 text-sm space-y-1 list-decimal list-inside">
@@ -456,8 +463,6 @@ export default function Home() {
                 <li>Make sure card names are visible if possible</li>
               </ol>
             </div>
-
-            {/* Photo upload */}
             <div
               onClick={() => fileInputRef.current?.click()}
               className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all duration-300 ${
@@ -487,8 +492,6 @@ export default function Home() {
               className="hidden"
               onChange={handlePhotoUpload}
             />
-
-            {/* Question */}
             <div className="mt-5">
               <label className="text-sm text-gold-500 block mb-2">
                 Your question (optional)
@@ -501,7 +504,6 @@ export default function Home() {
               />
             </div>
           </div>
-
           <button
             onClick={handlePhotoInterpret}
             disabled={!photoBase64}
@@ -513,7 +515,6 @@ export default function Home() {
           >
             {photoBase64 ? "Read My Spread ✦" : "Upload a photo to continue"}
           </button>
-
           <button
             onClick={() => setStep("modeSelect")}
             className="w-full mt-3 py-3 text-white/40 text-sm hover:text-white/60 transition-colors"
@@ -543,14 +544,12 @@ export default function Home() {
               />
             )}
           </div>
-
           {isLoading && !interpretation && (
             <div className="text-center py-8">
               <div className="text-4xl animate-spin-slow mb-4">☽</div>
               <p className="text-purple-300">Reading the energies of your cards...</p>
             </div>
           )}
-
           {interpretation && (
             <div className="glow-panel rounded-2xl p-6 md:p-8">
               <h3 className="text-gold-400 font-serif text-lg mb-4 text-center">
@@ -566,7 +565,6 @@ export default function Home() {
               <div ref={interpretRef} />
             </div>
           )}
-
           {interpretation && !isLoading && (
             <div className="flex gap-3 mt-6 justify-center flex-wrap">
               <button
@@ -586,7 +584,6 @@ export default function Home() {
         </div>
       )}
 
-      {/* Footer */}
       <footer className="mt-16 text-center text-white/20 text-xs">
         <p>✦ Trust your intuition · The cards reveal what is within ✦</p>
       </footer>
@@ -594,7 +591,6 @@ export default function Home() {
   );
 }
 
-// Simple markdown formatter (bold, headers, italic, hr)
 function formatMarkdown(text: string): string {
   return text
     .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
