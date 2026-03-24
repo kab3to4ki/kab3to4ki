@@ -142,6 +142,41 @@ export default function Home() {
     }
   }, [photoBase64, photoType, question]);
 
+  const handleShare = async (cards: DrawnCard[], q: string, reading: string) => {
+    const appUrl = "https://kab3to4ki.vercel.app";
+    const cardLine = cards.length > 0
+      ? cards.map(c => `${c.name}${c.reversed ? " (reversed)" : ""}`).join(", ")
+      : "Photo reading";
+    // Strip markdown for share text, take first ~300 chars
+    const plainReading = reading
+      .replace(/#{1,3}\s/g, "")
+      .replace(/\*\*/g, "")
+      .replace(/\*/g, "")
+      .replace(/\n+/g, " ")
+      .trim()
+      .slice(0, 300);
+    const shareText = [
+      "🔮 Mystic Tarot Reading",
+      cards.length > 0 ? `🃏 ${cardLine}` : "",
+      q ? `❓ "${q}"` : "",
+      "",
+      plainReading + (reading.length > 300 ? "…" : ""),
+      "",
+      `✨ Get your own reading: ${appUrl}`,
+    ].filter(Boolean).join("\n");
+
+    if (typeof navigator !== "undefined" && navigator.share) {
+      try {
+        await navigator.share({ text: shareText, url: appUrl });
+        return;
+      } catch {
+        // fallthrough to clipboard
+      }
+    }
+    await navigator.clipboard.writeText(shareText);
+    alert("Reading copied to clipboard! Paste it anywhere to share.");
+  };
+
   const handleReset = () => {
     setStep("welcome");
     setQuestion("");
@@ -186,7 +221,7 @@ export default function Home() {
             </button>
           </div>
           <p className="text-white/30 text-xs">
-            Powered by Claude AI · All readings are for guidance only
+            Powered by AI · All readings are for guidance only
           </p>
         </div>
       )}
@@ -425,6 +460,12 @@ export default function Home() {
           {interpretation && !isLoading && (
             <div className="flex gap-3 mt-6 justify-center flex-wrap">
               <button
+                onClick={() => handleShare(drawnCards, question, interpretation)}
+                className="btn-primary px-6 py-3 rounded-xl text-sm font-semibold flex items-center gap-2"
+              >
+                ↗ Share Reading
+              </button>
+              <button
                 onClick={handleGetInterpretation}
                 className="btn-mystic px-6 py-3 rounded-xl text-sm font-semibold"
               >
@@ -568,6 +609,12 @@ export default function Home() {
           {interpretation && !isLoading && (
             <div className="flex gap-3 mt-6 justify-center flex-wrap">
               <button
+                onClick={() => handleShare([], question, interpretation)}
+                className="btn-primary px-6 py-3 rounded-xl text-sm font-semibold flex items-center gap-2"
+              >
+                ↗ Share Reading
+              </button>
+              <button
                 onClick={handlePhotoInterpret}
                 className="btn-mystic px-6 py-3 rounded-xl text-sm font-semibold"
               >
@@ -592,13 +639,35 @@ export default function Home() {
 }
 
 function formatMarkdown(text: string): string {
-  return text
-    .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
-    .replace(/\*(.+?)\*/g, "<em>$1</em>")
-    .replace(/^## (.+)$/gm, "<h2>$1</h2>")
-    .replace(/^### (.+)$/gm, "<h3>$1</h3>")
-    .replace(/^---$/gm, "<hr/>")
-    .replace(/\n\n/g, "</p><p>")
-    .replace(/^/, "<p>")
-    .replace(/$/, "</p>");
+  const lines = text.split("\n");
+  let html = "";
+  let inList = false;
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed) {
+      if (inList) { html += "</ul>"; inList = false; }
+      continue;
+    }
+    if (trimmed.startsWith("### ")) {
+      if (inList) { html += "</ul>"; inList = false; }
+      html += `<h3 class="card-header">${trimmed.slice(4)}</h3>`;
+    } else if (trimmed.startsWith("## ")) {
+      if (inList) { html += "</ul>"; inList = false; }
+      html += `<h2 class="section-header">${trimmed.slice(3)}</h2>`;
+    } else if (trimmed.startsWith("- ") || trimmed.startsWith("* ")) {
+      if (!inList) { html += "<ul>"; inList = true; }
+      const content = trimmed.slice(2).replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>").replace(/\*(.+?)\*/g, "<em>$1</em>");
+      html += `<li>${content}</li>`;
+    } else if (trimmed === "---") {
+      if (inList) { html += "</ul>"; inList = false; }
+      html += "<hr/>";
+    } else {
+      if (inList) { html += "</ul>"; inList = false; }
+      const content = trimmed.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>").replace(/\*(.+?)\*/g, "<em>$1</em>");
+      html += `<p>${content}</p>`;
+    }
+  }
+  if (inList) html += "</ul>";
+  return html;
 }
