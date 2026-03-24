@@ -1,5 +1,9 @@
-import Anthropic from "@anthropic-ai/sdk";
+import OpenAI from "openai";
 import { type DrawnCard } from "@/lib/tarotCards";
+
+const client = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+});
 
 const SYSTEM_PROMPT = `You are a wise, compassionate tarot reader with deep knowledge of the cards and their symbolism.
 You provide thoughtful, nuanced readings that are insightful yet grounded.
@@ -17,19 +21,8 @@ Guidelines:
 
 Remember: tarot reveals patterns and potentials — the seeker always has free will to shape their path.`;
 
-export const maxDuration = 60;
-
 export async function POST(req: Request) {
   try {
-    const apiKey = process.env.ANTHROPIC_API_KEY;
-    if (!apiKey) {
-      return new Response(
-        JSON.stringify({ error: "ANTHROPIC_API_KEY is not set in environment variables" }),
-        { status: 500, headers: { "Content-Type": "application/json" } }
-      );
-    }
-
-    const client = new Anthropic({ apiKey });
     const body = await req.json();
     const { question, cards, spreadType, image, imageType } = body as {
       question?: string;
@@ -39,17 +32,18 @@ export async function POST(req: Request) {
       imageType?: string;
     };
 
-    let userContent: Anthropic.MessageParam["content"];
+    let userContent: OpenAI.Chat.ChatCompletionMessageParam["content"];
 
     if (image) {
-      const questionText = question ? `My question is: "${question}"\n\n` : "";
+      // Photo reading
+      const questionText = question
+        ? `My question is: "${question}"\n\n`
+        : "";
       userContent = [
         {
-          type: "image",
-          source: {
-            type: "base64",
-            media_type: (imageType as "image/jpeg" | "image/png" | "image/gif" | "image/webp") || "image/jpeg",
-            data: image,
+          type: "image_url",
+          image_url: {
+            url: `data:${imageType || "image/jpeg"};base64,${image}`,
           },
         },
         {
@@ -58,6 +52,7 @@ export async function POST(req: Request) {
         },
       ];
     } else if (cards && cards.length > 0) {
+      // Virtual spread reading
       const cardDescriptions = cards
         .map((card, i) => {
           const orientation = card.reversed ? "Reversed" : "Upright";
@@ -70,32 +65,44 @@ export async function POST(req: Request) {
         ? `The seeker's question: "${question}"\n\n`
         : "The seeker seeks general guidance.\n\n";
 
-      userContent = `${questionText}Spread: ${spreadType || "Custom Spread"}\n\nCards drawn:\n\n${cardDescriptions}\n\nPlease provide a full, insightful reading of this spread.`;
+      const spreadName = spreadType || "Custom Spread";
+
+      userContent = `${questionText}Spread: ${spreadName}\n\nCards drawn:\n\n${cardDescriptions}\n\nPlease provide a full, insightful reading of this spread.`;
     } else {
       return new Response("Invalid request: provide cards or image", { status: 400 });
     }
 
-    const message = await client.messages.create({
-      model: "claude-haiku-4-5-20251001",
-      max_tokens: 1024,
-      system: SYSTEM_PROMPT,
-      messages: [{ role: "user", content: userContent }],
+    const stream = await client.chat.completions.create({
+      model: "gpt-4o",
+      max_tokens: 2048,
+      stream: true,
+      messages: [
+        { role: "system", content: SYSTEM_PROMPT },
+        { role: "user", content: userContent },
+      ],
     });
 
-    const text = message.content
-      .filter((block) => block.type === "text")
-      .map((block) => (block as Anthropic.TextBlock).text)
-      .join("");
+    const readable = new ReadableStream({
+      async start(controller) {
+        const encoder = new TextEncoder();
+        for await (const chunk of stream) {
+          const text = chunk.choices[0]?.delta?.content;
+          if (text) {
+            controller.enqueue(encoder.encode(text));
+          }
+        }
+        controller.close();
+      },
+    });
 
-    return new Response(text, {
-      headers: { "Content-Type": "text/plain; charset=utf-8" },
+    return new Response(readable, {
+      headers: {
+        "Content-Type": "text/plain; charset=utf-8",
+        "Transfer-Encoding": "chunked",
+      },
     });
   } catch (error) {
-    const msg = error instanceof Error ? error.message : String(error);
-    console.error("Interpret error:", msg);
-    return new Response(
-      JSON.stringify({ error: msg }),
-      { status: 500, headers: { "Content-Type": "application/json" } }
-    );
+    console.error("Interpret error:", error);
+    return new Response(`Failed to generate reading: ${error}`, { status: 500 });
   }
 }
