@@ -1,7 +1,9 @@
-import Anthropic from "@anthropic-ai/sdk";
+import OpenAI from "openai";
 import { type DrawnCard } from "@/lib/tarotCards";
 
-const client = new Anthropic();
+const client = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+});
 
 const SYSTEM_PROMPT = `You are a wise, compassionate tarot reader with deep knowledge of the cards and their symbolism.
 You provide thoughtful, nuanced readings that are insightful yet grounded.
@@ -30,7 +32,7 @@ export async function POST(req: Request) {
       imageType?: string;
     };
 
-    let userContent: Anthropic.MessageParam["content"];
+    let userContent: OpenAI.Chat.ChatCompletionMessageParam["content"];
 
     if (image) {
       // Photo reading
@@ -39,11 +41,9 @@ export async function POST(req: Request) {
         : "";
       userContent = [
         {
-          type: "image",
-          source: {
-            type: "base64",
-            media_type: (imageType as "image/jpeg" | "image/png" | "image/gif" | "image/webp") || "image/jpeg",
-            data: image,
+          type: "image_url",
+          image_url: {
+            url: `data:${imageType || "image/jpeg"};base64,${image}`,
           },
         },
         {
@@ -72,22 +72,23 @@ export async function POST(req: Request) {
       return new Response("Invalid request: provide cards or image", { status: 400 });
     }
 
-    const stream = await client.messages.stream({
-      model: "claude-opus-4-6",
+    const stream = await client.chat.completions.create({
+      model: "gpt-4o",
       max_tokens: 2048,
-      system: SYSTEM_PROMPT,
-      messages: [{ role: "user", content: userContent }],
+      stream: true,
+      messages: [
+        { role: "system", content: SYSTEM_PROMPT },
+        { role: "user", content: userContent },
+      ],
     });
 
     const readable = new ReadableStream({
       async start(controller) {
         const encoder = new TextEncoder();
-        for await (const event of stream) {
-          if (
-            event.type === "content_block_delta" &&
-            event.delta.type === "text_delta"
-          ) {
-            controller.enqueue(encoder.encode(event.delta.text));
+        for await (const chunk of stream) {
+          const text = chunk.choices[0]?.delta?.content;
+          if (text) {
+            controller.enqueue(encoder.encode(text));
           }
         }
         controller.close();
@@ -102,6 +103,6 @@ export async function POST(req: Request) {
     });
   } catch (error) {
     console.error("Interpret error:", error);
-    return new Response("Failed to generate reading", { status: 500 });
+    return new Response(`Failed to generate reading: ${error}`, { status: 500 });
   }
 }
