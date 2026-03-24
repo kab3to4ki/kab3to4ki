@@ -21,7 +21,15 @@ export const maxDuration = 60;
 
 export async function POST(req: Request) {
   try {
-    const client = new Anthropic();
+    const apiKey = process.env.ANTHROPIC_API_KEY;
+    if (!apiKey) {
+      return new Response(
+        JSON.stringify({ error: "ANTHROPIC_API_KEY is not set in environment variables" }),
+        { status: 500, headers: { "Content-Type": "application/json" } }
+      );
+    }
+
+    const client = new Anthropic({ apiKey });
     const body = await req.json();
     const { question, cards, spreadType, image, imageType } = body as {
       question?: string;
@@ -34,10 +42,7 @@ export async function POST(req: Request) {
     let userContent: Anthropic.MessageParam["content"];
 
     if (image) {
-      // Photo reading
-      const questionText = question
-        ? `My question is: "${question}"\n\n`
-        : "";
+      const questionText = question ? `My question is: "${question}"\n\n` : "";
       userContent = [
         {
           type: "image",
@@ -53,7 +58,6 @@ export async function POST(req: Request) {
         },
       ];
     } else if (cards && cards.length > 0) {
-      // Virtual spread reading
       const cardDescriptions = cards
         .map((card, i) => {
           const orientation = card.reversed ? "Reversed" : "Upright";
@@ -66,15 +70,13 @@ export async function POST(req: Request) {
         ? `The seeker's question: "${question}"\n\n`
         : "The seeker seeks general guidance.\n\n";
 
-      const spreadName = spreadType || "Custom Spread";
-
-      userContent = `${questionText}Spread: ${spreadName}\n\nCards drawn:\n\n${cardDescriptions}\n\nPlease provide a full, insightful reading of this spread.`;
+      userContent = `${questionText}Spread: ${spreadType || "Custom Spread"}\n\nCards drawn:\n\n${cardDescriptions}\n\nPlease provide a full, insightful reading of this spread.`;
     } else {
       return new Response("Invalid request: provide cards or image", { status: 400 });
     }
 
     const message = await client.messages.create({
-      model: "claude-opus-4-6",
+      model: "claude-haiku-4-5-20251001",
       max_tokens: 1024,
       system: SYSTEM_PROMPT,
       messages: [{ role: "user", content: userContent }],
@@ -89,7 +91,11 @@ export async function POST(req: Request) {
       headers: { "Content-Type": "text/plain; charset=utf-8" },
     });
   } catch (error) {
-    console.error("Interpret error:", error);
-    return new Response("Failed to generate reading", { status: 500 });
+    const msg = error instanceof Error ? error.message : String(error);
+    console.error("Interpret error:", msg);
+    return new Response(
+      JSON.stringify({ error: msg }),
+      { status: 500, headers: { "Content-Type": "application/json" } }
+    );
   }
 }
